@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Papa from 'papaparse';
+import PlotAnalysis from "@/app/components/PlotAnalysis";
 
 const SentinelExplorer = () => {
   const [yearData, setYearData] = useState({});
@@ -72,6 +73,31 @@ const SentinelExplorer = () => {
       NDVI: data[66][`${idx}_B8`] && data[66][`${idx}_B4`] ?
           (data[66][`${idx}_B8`] - data[66][`${idx}_B4`]) / (data[66][`${idx}_B8`] + data[66][`${idx}_B4`]) : 0
     }));
+  };
+
+  const processMultiYearDataFilterAbnormalValues = (data) => {
+    if (selectedYear === 'all') {
+      return months.map((month, idx) => {
+        const entry = { month };
+        years.forEach(year => {
+          if (data[year]?.[66]) {
+            // Add normalization check for December
+            const vh = data[year][66][`${idx}_VHAsc`];
+            const vv = data[year][66][`${idx}_VVAsc`];
+            const b4 = data[year][66][`${idx}_B4`];
+            const b8 = data[year][66][`${idx}_B8`];
+
+            // Only assign if values are in expected ranges
+            entry[`VH_Asc_${year}`] = Math.abs(vh) > 100 ? null : vh;
+            entry[`VV_Asc_${year}`] = Math.abs(vv) > 100 ? null : vv;
+            entry[`B4_${year}`] = b4;
+            entry[`B8_${year}`] = b8;
+          }
+        });
+        return entry;
+      });
+    }
+    return processData(data[selectedYear]);
   };
 
   const processMultiYearData = (data) => {
@@ -253,6 +279,7 @@ const SentinelExplorer = () => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+        <PlotAnalysis />
       </div>
   );
 };
