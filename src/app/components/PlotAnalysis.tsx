@@ -58,7 +58,7 @@ const PlotAnalysis = ({ onPlotSelect }) => {
         });
         if (plotcode === selectAllPlotsString) {
             setSelectedPlot(null);
-            onPlotSelect(defaultPlot);
+            onPlotSelect(null);
         } else {
             const plot = parseInt(plotcode);
             setSelectedPlot(plot);
