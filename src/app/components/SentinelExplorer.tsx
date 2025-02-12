@@ -11,16 +11,19 @@ const SentinelExplorer = () => {
   const [yearStdData, setYearStdData] = useState({});
   const [selectedYear, setSelectedYear] = useState('all');
   const [selectedView, setSelectedView] = useState('backscatter');
+  const [selectedPlot, setSelectedPlot] = useState(66);
   const years = [2017, 2018, 2019, 2020, 2021, 2022];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   useEffect(() => {
     const loadData = async () => {
+      console.log("sentinel explorer starting data load . . .");
       const yearDataObj = {};
       const yearStdDataObj = {};
 
       for (const year of years) {
         try {
+          console.log(`sentinel explorer loading data for year ${year}...`)
           const [meanResponse, stdResponse] = await Promise.all([
             fetch(`/features_${year}_mean.csv`),
             fetch(`/features_${year}_stdD.csv`)
@@ -31,100 +34,147 @@ const SentinelExplorer = () => {
             stdResponse.text()
           ]);
 
-          Papa.parse(meanText, {
-            header: true,
-            dynamicTyping: true,
-            complete: (results) => {
-              yearDataObj[year] = results.data;
-            }
+          // Use Promise to handle async parsing
+          const meanData = await new Promise(resolve => {
+            Papa.parse(meanText, {
+              header: true,
+              dynamicTyping: true,
+              complete: (results) => {
+                console.log(`sentinel explorer parsed mean data for ${year}, rows:`, results.data.length);
+                resolve(results.data);
+              }
+            });
           });
 
-          Papa.parse(stdText, {
-            header: true,
-            dynamicTyping: true,
-            complete: (results) => {
-              yearStdDataObj[year] = results.data;
-            }
+          const stdData = await new Promise(resolve => {
+            Papa.parse(stdText, {
+              header: true,
+              dynamicTyping: true,
+              complete: (results) => {
+                console.log(`sentinel explorer parsed std data for ${year}, rows:`, results.data.length);
+                resolve(results.data);
+              }
+            });
           });
+
+          yearDataObj[year] = meanData;
+          yearStdDataObj[year] = stdData;
+
         } catch (error) {
           console.error(`Error loading ${year} data:`, error);
         }
       }
+
+      console.log("sentinel explorer setting state with loaded data.")
       setYearData(yearDataObj);
       setYearStdData(yearStdDataObj);
+
+      // Debug log the first plot's data
+      const firstPlot = yearDataObj[years[0]]?.[0];
+      console.log("Data structure check:", {
+        years: Object.keys(yearDataObj),
+        samplePlotIndex: firstPlot?.indexField,
+        availableColumns: firstPlot ? Object.keys(firstPlot) : []
+      });
     };
     loadData();
   }, []);
 
-  const processData = (data, year) => {
+  const processMultiYearData = (data) => {
     if (!data) return [];
 
-    const month_keys = [0,1,2,3,4,5,6,7,8,9,10,11];
-    return month_keys.map((idx) => ({
-      month: months[idx],
-      VH_Asc: data[66][`${idx}_VHAsc`],
-      VV_Asc: data[66][`${idx}_VVAsc`],
-      VH_Des: data[66][`${idx}_VHDes`],
-      VV_Des: data[66][`${idx}_VVDes`],
-      B2: data[66][`${idx}_B2`],
-      B3: data[66][`${idx}_B3`],
-      B4: data[66][`${idx}_B4`],
-      B8: data[66][`${idx}_B8`],
-      NDVI: data[66][`${idx}_B8`] && data[66][`${idx}_B4`] ?
-          (data[66][`${idx}_B8`] - data[66][`${idx}_B4`]) / (data[66][`${idx}_B8`] + data[66][`${idx}_B4`]) : 0
-    }));
-  };
+    console.log("Processing data for plot:", {
+      selectedYear,
+      selectedPlot,
+      dataAvailable: !!data,
+      yearKeys: Object.keys(data)
+    });
 
-  const processMultiYearDataFilterAbnormalValues = (data) => {
+    // Add debug logging for the first year's data
+    const firstYear = years[0];
+    const examplePlot = data[firstYear]?.find(row => row.indexField === selectedPlot);
+    console.log("Example plot data:", {
+      year: firstYear,
+      plotFound: !!examplePlot,
+      indexField: examplePlot?.indexField,
+      sampleData: examplePlot ?
+          Object.fromEntries(
+              Object.entries(examplePlot)
+                  .filter(([key, value]) => value !== null)
+                  .slice(0, 5)
+          ) : null
+    });
+
     if (selectedYear === 'all') {
       return months.map((month, idx) => {
         const entry = { month };
         years.forEach(year => {
-          if (data[year]?.[66]) {
-            // Add normalization check for December
-            const vh = data[year][66][`${idx}_VHAsc`];
-            const vv = data[year][66][`${idx}_VVAsc`];
-            const b4 = data[year][66][`${idx}_B4`];
-            const b8 = data[year][66][`${idx}_B8`];
+          if (!data[year]) return;
 
-            // Only assign if values are in expected ranges
-            entry[`VH_Asc_${year}`] = Math.abs(vh) > 100 ? null : vh;
-            entry[`VV_Asc_${year}`] = Math.abs(vv) > 100 ? null : vv;
-            entry[`B4_${year}`] = b4;
-            entry[`B8_${year}`] = b8;
-          }
-        });
-        return entry;
-      });
-    }
-    return processData(data[selectedYear]);
-  };
-
-  const processMultiYearData = (data) => {
-    if (selectedYear === 'all') {
-      return months.map((month, idx) => {
-        const entry = { month };
-        years.forEach(year => {
-          if (data[year]?.[66]) {
-            entry[`VH_Asc_${year}`] = data[year][66][`${idx}_VHAsc`];
-            entry[`VV_Asc_${year}`] = data[year][66][`${idx}_VVAsc`];
-            entry[`VH_Des_${year}`] = data[year][66][`${idx}_VHDes`];
-            entry[`VV_Des_${year}`] = data[year][66][`${idx}_VVDes`];
-            entry[`B2_${year}`] = data[year][66][`${idx}_B2`];
-            entry[`B3_${year}`] = data[year][66][`${idx}_B3`];
-            entry[`B4_${year}`] = data[year][66][`${idx}_B4`];
-            entry[`B8_${year}`] = data[year][66][`${idx}_B8`];
-            if (data[year][66][`${idx}_B8`] && data[year][66][`${idx}_B4`]) {
-              entry[`NDVI_${year}`] = (data[year][66][`${idx}_B8`] - data[year][66][`${idx}_B4`]) /
-                  (data[year][66][`${idx}_B8`] + data[year][66][`${idx}_B4`]);
+          // Find the correct plot in the data array
+          const plotData = data[year].find(row => row.plotcode === selectedPlot);
+          if (plotData) {
+            console.log(`Found data for year ${year}, month ${month}, plot ${selectedPlot}`);
+            entry[`VH_Asc_${year}`] = plotData[`${idx}_VHAsc`];
+            entry[`VV_Asc_${year}`] = plotData[`${idx}_VVAsc`];
+            entry[`VH_Des_${year}`] = plotData[`${idx}_VHDes`];
+            entry[`VV_Des_${year}`] = plotData[`${idx}_VVDes`];
+            entry[`B2_${year}`] = plotData[`${idx}_B2`];
+            entry[`B3_${year}`] = plotData[`${idx}_B3`];
+            entry[`B4_${year}`] = plotData[`${idx}_B4`];
+            entry[`B8_${year}`] = plotData[`${idx}_B8`];
+            if (plotData[`${idx}_B8`] != null && plotData[`${idx}_B4`] != null) {
+              entry[`NDVI_${year}`] = (plotData[`${idx}_B8`] - plotData[`${idx}_B4`]) /
+                  (plotData[`${idx}_B8`] + plotData[`${idx}_B4`]);
             }
           }
         });
         return entry;
       });
     }
-    return processData(data[selectedYear]);
+
+    // Single year processing
+    const targetData = data[selectedYear];
+    if (!targetData) {
+      console.log("No data found for year:", selectedYear);
+      return [];
+    }
+
+    const plotData = targetData.find(row => row.plotcode === selectedPlot);
+    if (!plotData) {
+      console.log("No data found for plot:", selectedPlot, "in year:", selectedYear);
+      return [];
+    }
+
+    console.log("Found plot data:", {
+      year: selectedYear,
+      plot: selectedPlot,
+      sampleKeys: Object.keys(plotData).slice(0, 5)
+    });
+
+    return months.map((month, idx) => {
+      const monthData = {
+        month,
+        VH_Asc: plotData[`${idx}_VHAsc`],
+        VV_Asc: plotData[`${idx}_VVAsc`],
+        VH_Des: plotData[`${idx}_VHDes`],
+        VV_Des: plotData[`${idx}_VVDes`],
+        B2: plotData[`${idx}_B2`],
+        B3: plotData[`${idx}_B3`],
+        B4: plotData[`${idx}_B4`],
+        B8: plotData[`${idx}_B8`]
+      };
+      console.log(`Month ${month} data:`, monthData);
+
+      if (plotData[`${idx}_B8`] != null && plotData[`${idx}_B4`] != null) {
+        monthData.NDVI = (plotData[`${idx}_B8`] - plotData[`${idx}_B4`]) /
+            (plotData[`${idx}_B8`] + plotData[`${idx}_B4`]);
+      }
+
+      return monthData;
+    });
   };
+
 
   const views = {
     backscatter: {
@@ -173,6 +223,7 @@ const SentinelExplorer = () => {
   };
 
   const currentView = views[selectedView];
+  console.log('Year data into processMultiYearData:', yearData);
   const processedMeanData = processMultiYearData(yearData);
   const processedStdData = processMultiYearData(yearStdData);
 
@@ -279,7 +330,9 @@ const SentinelExplorer = () => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-        <PlotAnalysis />
+
+        <PlotAnalysis onPlotSelect={setSelectedPlot} />
+        <div className="mb-5 mt-100"><br /><br /><br /></div>
       </div>
   );
 };
