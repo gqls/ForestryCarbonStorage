@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Papa from 'papaparse';
 import PlotAnalysis from "@/app/components/PlotAnalysis";
+import AggregatedPlotsAnalysis from "@/app/components/AggregatedPlotsAnalysis";
 
 const SentinelExplorer = () => {
   const [yearData, setYearData] = useState({});
@@ -306,6 +307,7 @@ const SentinelExplorer = () => {
 
   return (
       <div className="space-y-4">
+        {/* Control Panel */}
         <div className="flex gap-4 mb-4">
           <select
               value={selectedYear}
@@ -332,84 +334,107 @@ const SentinelExplorer = () => {
           ))}
         </div>
 
-        <Card>
-          <CardHeader>
-            <h3 className="text-lg font-semibold">
-              {selectedYear === 'all' ? 'All Years' : selectedYear} Mean {currentView.title}
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400} className="min-h-[400px]">
-              <LineChart data={processedMeanData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis
-                    domain={currentView.yAxisDomain}
-                    tickCount={10}
-                    label={{
-                      value: currentView.title === "Sentinel-1 Backscatter" ? 'Backscatter (dB)' : 'Value',
-                      angle: -90,
-                      position: 'insideLeft'
-                    }}
-                />
-                <Tooltip />
-                <Legend />
-                {currentView.lines.map(line => (
-                    <Line
-                        key={line.key}
-                        type="monotone"
-                        dataKey={line.key}
-                        stroke={line.color}
-                        name={line.name}
-                        dot={false}
-                        isAnimationActive={false}
-                    />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {/* Visualization Section */}
+        {selectedPlot === null ? (
+            // Aggregated view for all plots
+            <AggregatedPlotsAnalysis
+                yearData={yearData}
+                yearStdData={yearStdData}
+                selectedYear={selectedYear}
+                selectedView={selectedView}
+                years={years}
+                months={months}
+            />
+        ) : (
+            // Individual plot view
+            <>
+              {/* Mean Values Chart */}
+              <Card>
+                <CardHeader>
+                  <h3 className="text-lg font-semibold">
+                    {selectedYear === 'all' ? 'All Years' : selectedYear} Mean {currentView.title}
+                  </h3>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={400} className="min-h-[400px]">
+                    <LineChart data={processedMeanData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis
+                          domain={currentView.yAxisDomain}
+                          tickCount={10}
+                          label={{
+                            value: currentView.title === "Sentinel-1 Backscatter" ? 'Backscatter (dB)' : 'Value',
+                            angle: -90,
+                            position: 'insideLeft'
+                          }}
+                      />
+                      <Tooltip />
+                      <Legend />
+                      {currentView.lines.map(line => (
+                          <Line
+                              key={line.key}
+                              type="monotone"
+                              dataKey={line.key}
+                              stroke={line.color}
+                              name={line.name}
+                              dot={false}
+                              isAnimationActive={false}
+                          />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
 
-        <Card>
-          <CardHeader>
-            <h3 className="text-lg font-semibold">
-              {selectedYear === 'all' ? 'All Years' : selectedYear} Standard Deviation {currentView.title}
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={400} className="min-h-[400px]">
-              <LineChart data={processedStdData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis
-                    domain={['auto', 'auto']}
-                    tickCount={10}
-                    label={{
-                      value: 'Standard Deviation',
-                      angle: -90,
-                      position: 'insideLeft'
-                    }}
-                />
-                <Tooltip />
-                <Legend />
-                {currentView.lines.map(line => (
-                    <Line
-                        key={line.key}
-                        type="monotone"
-                        dataKey={line.key}
-                        stroke={line.color}
-                        name={line.name}
-                        dot={false}
-                        isAnimationActive={false}
-                    />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+              {/* Standard Deviation Chart */}
+              <Card>
+                <CardHeader>
+                  <h3 className="text-lg font-semibold">
+                    {selectedYear === 'all' ? 'All Years' : selectedYear} Standard Deviation {currentView.title}
+                  </h3>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={400} className="min-h-[400px]">
+                    <LineChart data={processedStdData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis
+                          domain={['auto', 'auto']}
+                          tickCount={10}
+                          label={{
+                            value: 'Standard Deviation',
+                            angle: -90,
+                            position: 'insideLeft'
+                          }}
+                      />
+                      <Tooltip />
+                      <Legend />
+                      {currentView.lines.map(line => (
+                          <Line
+                              key={line.key}
+                              type="monotone"
+                              dataKey={line.key}
+                              stroke={line.color}
+                              name={line.name}
+                              dot={false}
+                              isAnimationActive={false}
+                          />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </>
+        )}
 
+        {/* Plot Selection Component */}
         <PlotAnalysis onPlotSelect={setSelectedPlot} />
-        <div className="mb-5 mt-100"><br /><br /><br /></div>
+
+        {/* Bottom Spacing */}
+        <div className="mb-5 mt-100">
+          <br /><br /><br />
+        </div>
       </div>
   );
 };

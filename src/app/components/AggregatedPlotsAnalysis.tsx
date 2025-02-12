@@ -14,6 +14,14 @@ const AggregatedPlotsAnalysis = ({
                                      months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                                  }) => {
     const processAggregatedData = (data) => {
+        console.log("========== START AGGREGATED PROCESSING ==========");
+        console.log("Input data structure:", {
+            hasData: !!data,
+            yearKeys: data ? Object.keys(data) : [],
+            sampleYear: data ? Object.keys(data)[0] : null,
+            sampleYearLength: data ? data[Object.keys(data)[0]]?.length : 0
+        });
+
         if (!data || Object.keys(data).length === 0) {
             console.log("No data available for aggregation");
             return [];
@@ -21,15 +29,21 @@ const AggregatedPlotsAnalysis = ({
 
         // Process monthly averages across all plots
         return months.map((month, idx) => {
+            console.log(`Processing month: ${month} (index: ${idx})`);
             const entry = { month };
 
             // If viewing all years, process each year separately
             const yearsToProcess = selectedYear === 'all' ? years : [selectedYear];
+            console.log("Years to process:", yearsToProcess);
 
             yearsToProcess.forEach(year => {
-                if (!data[year]) return;
+                if (!data[year]) {
+                    console.log(`No data for year ${year}`);
+                    return;
+                }
 
                 const plotsData = data[year];
+                console.log(`Year ${year} has ${plotsData.length} plots`);
 
                 // Create an array of metrics we want to average
                 const metrics = [
@@ -48,11 +62,9 @@ const AggregatedPlotsAnalysis = ({
                     const validPlots = plotsData.filter(plot => plot[`${idx}_${metric.name}`] !== null);
 
                     if (validPlots.length > 0) {
-                        const metricKey = `${metric.name}${metric.suffix}`;
-                        entry[metricKey] = _.meanBy(validPlots, plot => plot[`${idx}_${metric.name}`]);
-
-                        // Add count of plots used for this average
-                        entry[`${metricKey}_count`] = validPlots.length;
+                        const outputKey = `${metric.name}${metric.suffix}`;
+                        entry[outputKey] = _.meanBy(validPlots, plot => plot[`${idx}_${metric.name}`]);
+                        entry[`${outputKey}_count`] = validPlots.length;
                     }
                 });
 
@@ -122,99 +134,107 @@ const AggregatedPlotsAnalysis = ({
 
     return (
         <div className="space-y-4">
-            <Card>
-                <CardHeader>
-                    <h3 className="text-lg font-semibold">
-                        {selectedYear === 'all' ? 'All Years' : selectedYear} Mean {currentView.title}
-                    </h3>
-                </CardHeader>
-                <CardContent>
-                    <ResponsiveContainer width="100%" height={400} className="min-h-[400px]">
-                        <LineChart data={processedMeanData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
-                            <YAxis
-                                domain={currentView.yAxisDomain}
-                                tickCount={10}
-                                label={{
-                                    value: currentView.title === "Average Sentinel-1 Backscatter" ? 'Backscatter (dB)' : 'Value',
-                                    angle: -90,
-                                    position: 'insideLeft'
-                                }}
-                            />
-                            <Tooltip
-                                content={({ active, payload, label }) => {
-                                    if (active && payload && payload.length) {
-                                        return (
-                                            <div className="bg-white p-2 border rounded shadow">
-                                                <p className="font-semibold">{label}</p>
-                                                {payload.map((entry, index) => (
-                                                    <p key={index} style={{ color: entry.color }}>
-                                                        {entry.name}: {entry.value?.toFixed(2)}
-                                                        {entry.payload[`${entry.dataKey}_count`] &&
-                                                            ` (n=${entry.payload[`${entry.dataKey}_count`]})`}
-                                                    </p>
-                                                ))}
-                                            </div>
-                                        );
-                                    }
-                                    return null;
-                                }}
-                            />
-                            <Legend />
-                            {currentView.lines.map(line => (
-                                <Line
-                                    key={line.key}
-                                    type="monotone"
-                                    dataKey={line.key}
-                                    stroke={line.color}
-                                    name={line.name}
-                                    dot={false}
-                                    isAnimationActive={false}
-                                />
-                            ))}
-                        </LineChart>
-                    </ResponsiveContainer>
-                </CardContent>
-            </Card>
+            {Object.keys(yearData).length === 0 ? (
+                <div className="text-center p-4">Loading data...</div>
+            ) : (
+                <>
+                    {/* Mean Values Chart */}
+                    <Card>
+                        <CardHeader>
+                            <h3 className="text-lg font-semibold">
+                                {selectedYear === 'all' ? 'All Years' : selectedYear} Mean {currentView.title}
+                            </h3>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={400} className="min-h-[400px]">
+                                <LineChart data={processedMeanData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="month" />
+                                    <YAxis
+                                        domain={currentView.yAxisDomain}
+                                        tickCount={10}
+                                        label={{
+                                            value: currentView.title === "Average Sentinel-1 Backscatter" ? 'Backscatter (dB)' : 'Value',
+                                            angle: -90,
+                                            position: 'insideLeft'
+                                        }}
+                                    />
+                                    <Tooltip
+                                        content={({ active, payload, label }) => {
+                                            if (active && payload && payload.length) {
+                                                return (
+                                                    <div className="bg-white p-2 border rounded shadow">
+                                                        <p className="font-semibold">{label}</p>
+                                                        {payload.map((entry, index) => (
+                                                            <p key={index} style={{ color: entry.color }}>
+                                                                {entry.name}: {entry.value?.toFixed(2)}
+                                                                {entry.payload[`${entry.dataKey}_count`] &&
+                                                                    ` (n=${entry.payload[`${entry.dataKey}_count`]})`}
+                                                            </p>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
+                                    <Legend />
+                                    {currentView.lines.map(line => (
+                                        <Line
+                                            key={line.key}
+                                            type="monotone"
+                                            dataKey={line.key}
+                                            stroke={line.color}
+                                            name={line.name}
+                                            dot={false}
+                                            isAnimationActive={false}
+                                        />
+                                    ))}
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
 
-            <Card>
-                <CardHeader>
-                    <h3 className="text-lg font-semibold">
-                        {selectedYear === 'all' ? 'All Years' : selectedYear} Standard Deviation {currentView.title}
-                    </h3>
-                </CardHeader>
-                <CardContent>
-                    <ResponsiveContainer width="100%" height={400} className="min-h-[400px]">
-                        <LineChart data={processedStdData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="month" />
-                            <YAxis
-                                domain={['auto', 'auto']}
-                                tickCount={10}
-                                label={{
-                                    value: 'Standard Deviation',
-                                    angle: -90,
-                                    position: 'insideLeft'
-                                }}
-                            />
-                            <Tooltip />
-                            <Legend />
-                            {currentView.lines.map(line => (
-                                <Line
-                                    key={line.key}
-                                    type="monotone"
-                                    dataKey={line.key}
-                                    stroke={line.color}
-                                    name={line.name}
-                                    dot={false}
-                                    isAnimationActive={false}
-                                />
-                            ))}
-                        </LineChart>
-                    </ResponsiveContainer>
-                </CardContent>
-            </Card>
+                    {/* Standard Deviation Chart */}
+                    <Card>
+                        <CardHeader>
+                            <h3 className="text-lg font-semibold">
+                                {selectedYear === 'all' ? 'All Years' : selectedYear} Standard Deviation {currentView.title}
+                            </h3>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={400} className="min-h-[400px]">
+                                <LineChart data={processedStdData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="month" />
+                                    <YAxis
+                                        domain={['auto', 'auto']}
+                                        tickCount={10}
+                                        label={{
+                                            value: 'Standard Deviation',
+                                            angle: -90,
+                                            position: 'insideLeft'
+                                        }}
+                                    />
+                                    <Tooltip />
+                                    <Legend />
+                                    {currentView.lines.map(line => (
+                                        <Line
+                                            key={line.key}
+                                            type="monotone"
+                                            dataKey={line.key}
+                                            stroke={line.color}
+                                            name={line.name}
+                                            dot={false}
+                                            isAnimationActive={false}
+                                        />
+                                    ))}
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+                </>
+            )}
         </div>
     );
 };
