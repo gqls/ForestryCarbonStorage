@@ -100,8 +100,7 @@ const PlotAnalysisOrig = ({ onPlotSelect }) => {
                     onChange={(e) => handlePlotChange(e.target.value)}
                     className="px-4 py-2 rounded border"
                 >
-                    <option value={selectAllPlotsString}>Select Plot</option>
-                    <option key='all' value='all'>All Plots</option>
+                    <option key={selectAllPlotsString} value={selectAllPlotsString}>All Plots</option>
                     {plotData.map(plot => (
                         <option key={plot.plotcode} value={plot.plotcode}>
                             Plot {plot.plotcode} ({plot.country})

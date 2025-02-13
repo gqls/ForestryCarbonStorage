@@ -2,47 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Papa from 'papaparse';
-
-const treeTypeClassification = {
-    // Deciduous (Broadleaf) Trees
-    'Acer platanoides L.': 'deciduous',        // Norway Maple
-    'Acer pseudoplatanus L.': 'deciduous',     // Sycamore Maple
-    'Alnus glutinosa (L.) Gaertn.': 'deciduous', // Black Alder
-    'Alnus incana (L.) Moench': 'deciduous',   // Grey Alder
-    'Alnus spp.': 'deciduous',                 // Alder species
-    'Betula pendula Roth': 'deciduous',        // Silver Birch
-    'Betula pubescens Ehrh.': 'deciduous',     // Downy Birch
-    'Betula spp.': 'deciduous',                // Birch species
-    'Carpinus betulus L.': 'deciduous',        // European Hornbeam
-    'Fagus sylvatica L.': 'deciduous',         // European Beech
-    'Fraxinus excelsior L.': 'deciduous',      // European Ash
-    'Other broadleaved': 'deciduous',          // Other broadleaf trees
-    'Populus tremula L.': 'deciduous',         // European Aspen
-    'Prunus avium L.': 'deciduous',            // Wild Cherry
-    'Quercus spp.': 'deciduous',               // Oak species
-    'Salix caprea L.': 'deciduous',            // Goat Willow
-    'Salix spp.': 'deciduous',                 // Willow species
-    'Sorbus aucuparia L.': 'deciduous',        // Rowan
-    'Sorbus intermedia (Ehrh.) Pers.': 'deciduous', // Swedish Whitebeam
-    'Sorbus spp.': 'deciduous',                // Sorbus species
-    'Tilia spp.': 'deciduous',                 // Lime/Linden species
-    'Ulmus spp.': 'deciduous',                 // Elm species
-
-    // Evergreen (Coniferous) Trees
-    'Juniperus spp.\n': 'evergreen',           // Juniper species
-    'Larix spp.': 'deciduous',                 // Larch species (deciduous conifer)
-    'Other conifers': 'evergreen',             // Other coniferous trees
-    'Picea abies (L.) H.Karst.': 'evergreen',  // Norway Spruce
-    'Picea spp.': 'evergreen',                 // Spruce species
-    'Pinus contorta Douglas ex Loudon': 'evergreen', // Lodgepole Pine
-    'Pinus mugo Turra': 'evergreen',           // Mountain Pine
-    'Pinus sylvestris L.': 'evergreen',        // Scots Pine
-};
+import _ from 'lodash';
 
 const TreeTypeAnalysis = ({ onPlotSelect, selectedPlot }) => {
     const [treeData, setTreeData] = useState([]);
-    const [selectedTreeType, setSelectedTreeType] = useState('all');
+    const [chartData, setChartData] = useState([]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -54,11 +20,16 @@ const TreeTypeAnalysis = ({ onPlotSelect, selectedPlot }) => {
                     header: true,
                     dynamicTyping: true,
                     complete: (results) => {
-                        const enrichedData = results.data.map(tree => ({
-                            ...tree,
-                            treeType: treeTypeClassification[tree.taxonname] || 'unknown'
-                        }));
+                        const enrichedData = results.data
+                            .filter(tree => tree.taxonname) // Filter out null/undefined taxonnames
+                            .map(tree => ({
+                                ...tree,
+                                treeType: treeTypeClassification[tree.taxonname] || 'unknown'
+                            }));
+
                         setTreeData(enrichedData);
+                        const plotAverages = processTreeTypesByPlot(enrichedData);
+                        setChartData(plotAverages);
                     }
                 });
             } catch (error) {
@@ -68,93 +39,178 @@ const TreeTypeAnalysis = ({ onPlotSelect, selectedPlot }) => {
         loadData();
     }, []);
 
-    const analyzePlotTreeTypes = (plotcode) => {
-        const plotTrees = treeData.filter(tree =>
-            plotcode ? tree.plotcode === plotcode : true
-        );
+    const processTreeTypesByPlot = (trees) => {
+        const plotGroups = _.groupBy(trees, 'plotcode');
+        const plotStats = Object.entries(plotGroups).map(([plotcode, plotTrees]) => {
+            const total = plotTrees.length;
+            const typeCounts = _.countBy(plotTrees, 'treeType');
 
-        const typeCount = plotTrees.reduce((acc, tree) => {
-            const type = tree.treeType;
-            acc[type] = (acc[type] || 0) + 1;
-            return acc;
-        }, {});
+            return {
+                plotcode,
+                total,
+                evergreen: (typeCounts.evergreen || 0) / total * 100,
+                deciduous: (typeCounts.deciduous || 0) / total * 100,
+                unknown: (typeCounts.unknown || 0) / total * 100
+            };
+        });
 
-        const total = Object.values(typeCount).reduce((sum, count) => sum + count, 0);
-
-        return {
-            counts: typeCount,
-            percentages: Object.entries(typeCount).reduce((acc, [type, count]) => {
-                acc[type] = ((count / total) * 100).toFixed(1);
-                return acc;
-            }, {}),
-            total
+        const averages = {
+            evergreen: _.meanBy(plotStats, 'evergreen'),
+            deciduous: _.meanBy(plotStats, 'deciduous'),
+            unknown: _.meanBy(plotStats, 'unknown')
         };
+
+        const stdDev = {
+            evergreen: Math.sqrt(_.meanBy(plotStats, p => Math.pow(p.evergreen - averages.evergreen, 2))),
+            deciduous: Math.sqrt(_.meanBy(plotStats, p => Math.pow(p.deciduous - averages.deciduous, 2))),
+            unknown: Math.sqrt(_.meanBy(plotStats, p => Math.pow(p.unknown - averages.unknown, 2)))
+        };
+
+        return [{
+            name: 'Average Distribution',
+            evergreen: _.round(averages.evergreen, 1),
+            deciduous: _.round(averages.deciduous, 1),
+            unknown: _.round(averages.unknown, 1),
+            evergreenStd: _.round(stdDev.evergreen, 1),
+            deciduousStd: _.round(stdDev.deciduous, 1),
+            unknownStd: _.round(stdDev.unknown, 1),
+            totalPlots: plotStats.length,
+            totalTrees: _.sumBy(plotStats, 'total')
+        }];
     };
 
-    const getPlotsByTreeType = (type) => {
-        if (type === 'all') return new Set(treeData.map(tree => tree.plotcode));
-        return new Set(treeData.filter(tree => tree.treeType === type).map(tree => tree.plotcode));
-    };
-
-    const handleTreeTypeChange = (type) => {
-        setSelectedTreeType(type);
-        // If the currently selected plot doesn't contain the selected tree type,
-        // reset the plot selection
-        const plotsWithType = getPlotsByTreeType(type);
-        if (selectedPlot && !plotsWithType.has(selectedPlot)) {
-            onPlotSelect(null);
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length > 0) {
+            return (
+                <div className="bg-white p-3 border rounded shadow">
+                    <p className="text-sm font-semibold mb-1">{label}</p>
+                    {payload.map((entry) => (
+                        <p key={entry.name} className="text-sm" style={{ color: entry.color }}>
+                            {entry.name}: {entry.value.toFixed(1)}% ± {payload[0].payload[`${entry.dataKey}Std`]}%
+                        </p>
+                    ))}
+                </div>
+            );
         }
+        return null;
     };
-
-    const analysis = selectedPlot ? analyzePlotTreeTypes(selectedPlot) : analyzePlotTreeTypes();
 
     return (
         <Card className="mb-4">
             <CardHeader>
-                <h3 className="text-lg font-semibold">Tree Type Analysis</h3>
+                <h3 className="text-lg font-semibold">Tree Type Distribution</h3>
+                {chartData.length > 0 && (
+                    <p className="text-sm text-gray-600">
+                        Based on {chartData[0].totalPlots.toLocaleString()} plots,
+                        {' '}{chartData[0].totalTrees.toLocaleString()} trees
+                    </p>
+                )}
             </CardHeader>
             <CardContent>
-                <div className="space-y-4">
-                    {/* Tree Type Filter */}
-                    <div className="flex items-center gap-4">
-                        <label className="font-medium">Filter by tree type:</label>
-                        <select
-                            value={selectedTreeType}
-                            onChange={(e) => handleTreeTypeChange(e.target.value)}
-                            className="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                            <option value="all">All Tree Types</option>
-                            <option value="evergreen">Evergreen</option>
-                            <option value="deciduous">Deciduous</option>
-                        </select>
-                    </div>
-
-                    {/* Analysis Results */}
-                    <div className="mt-4">
-                        <h4 className="font-semibold mb-2">Distribution:</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {Object.entries(analysis.counts).map(([type, count]) => (
-                                <div
-                                    key={type}
-                                    className="p-4 rounded-lg bg-gray-50 border border-gray-200"
-                                >
-                                    <div className="text-lg font-semibold capitalize">
-                                        {type}
-                                    </div>
-                                    <div className="text-gray-600">
-                                        {count} trees ({analysis.percentages[type]}%)
-                                    </div>
-                                </div>
-                            ))}
+                <div className="mt-4" style={{ width: '100%', height: 400 }}>
+                    {chartData.length > 0 ? (
+                        <ResponsiveContainer>
+                            <BarChart
+                                data={chartData}
+                                margin={{ top: 20, right: 30, left: 40, bottom: 5 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="name" />
+                                <YAxis
+                                    domain={[0, 100]}
+                                    label={{
+                                        value: 'Percentage of Trees',
+                                        angle: -90,
+                                        position: 'insideLeft',
+                                        offset: -30
+                                    }}
+                                />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend />
+                                <Bar
+                                    dataKey="evergreen"
+                                    fill="#2e7d32"
+                                    name="Evergreen"
+                                />
+                                <Bar
+                                    dataKey="deciduous"
+                                    fill="#ed6c02"
+                                    name="Deciduous"
+                                />
+                                <Bar
+                                    dataKey="unknown"
+                                    fill="#757575"
+                                    name="Unknown"
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-full flex items-center justify-center">
+                            <p className="text-gray-500">Loading data...</p>
                         </div>
-                        <div className="mt-4 text-sm text-gray-600">
-                            Total trees analyzed: {analysis.total}
-                        </div>
-                    </div>
+                    )}
                 </div>
+
+                {/* Summary Cards */}
+                {chartData.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                        {[
+                            { label: 'Evergreen', key: 'evergreen', color: '#2e7d32' },
+                            { label: 'Deciduous', key: 'deciduous', color: '#ed6c02' },
+                            { label: 'Unknown', key: 'unknown', color: '#757575' }
+                        ].map(({ label, key, color }) => (
+                            <div
+                                key={key}
+                                className="p-4 rounded-lg bg-gray-50 border border-gray-200"
+                            >
+                                <div className="text-lg font-semibold" style={{ color }}>
+                                    {label}
+                                </div>
+                                <div className="text-gray-600">
+                                    {chartData[0][key]}% ± {chartData[0][`${key}Std`]}%
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </CardContent>
         </Card>
     );
+};
+
+// Tree type classification
+const treeTypeClassification = {
+    'Picea abies (L.) H.Karst.': 'evergreen',  // Norway Spruce
+    'Pinus sylvestris L.': 'evergreen',        // Scots Pine
+    'Pinus contorta Douglas ex Loudon': 'evergreen', // Lodgepole Pine
+    'Picea spp.': 'evergreen',                 // Spruce species
+    'Pinus mugo Turra': 'evergreen',           // Mountain Pine
+    'Juniperus spp.\n': 'evergreen',           // Juniper species
+    'Other conifers': 'evergreen',             // Other coniferous trees
+
+    'Betula pendula Roth': 'deciduous',        // Silver Birch
+    'Betula pubescens Ehrh.': 'deciduous',     // Downy Birch
+    'Betula spp.': 'deciduous',                // Birch species
+    'Populus tremula L.': 'deciduous',         // European Aspen
+    'Alnus glutinosa (L.) Gaertn.': 'deciduous', // Black Alder
+    'Alnus incana (L.) Moench': 'deciduous',   // Grey Alder
+    'Alnus spp.': 'deciduous',                 // Alder species
+    'Salix caprea L.': 'deciduous',            // Goat Willow
+    'Salix spp.': 'deciduous',                 // Willow species
+    'Sorbus aucuparia L.': 'deciduous',        // Rowan
+    'Sorbus intermedia (Ehrh.) Pers.': 'deciduous', // Swedish Whitebeam
+    'Sorbus spp.': 'deciduous',                // Sorbus species
+    'Acer platanoides L.': 'deciduous',        // Norway Maple
+    'Acer pseudoplatanus L.': 'deciduous',     // Sycamore Maple
+    'Fraxinus excelsior L.': 'deciduous',      // European Ash
+    'Quercus spp.': 'deciduous',               // Oak species
+    'Tilia spp.': 'deciduous',                 // Lime/Linden species
+    'Ulmus spp.': 'deciduous',                 // Elm species
+    'Carpinus betulus L.': 'deciduous',        // European Hornbeam
+    'Fagus sylvatica L.': 'deciduous',         // European Beech
+    'Prunus avium L.': 'deciduous',            // Wild Cherry
+    'Other broadleaved': 'deciduous',          // Other broadleaf trees
+    'Larix spp.': 'deciduous'                  // Larch species (deciduous conifer)
 };
 
 export default TreeTypeAnalysis;
