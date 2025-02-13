@@ -4,11 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import Papa from 'papaparse';
 
-const PlotAnalysisOrig = ({ onPlotSelect }) => {
+const PlotAnalysis = ({ selectedPlot, onPlotSelect }) => {
     const [treeData, setTreeData] = useState([]);
     const [plotData, setPlotData] = useState([]);
-    const [selectedPlot, setSelectedPlot] = useState(null);
-    const defaultPlot = 66;
     const selectAllPlotsString = 'all';
 
     useEffect(() => {
@@ -51,20 +49,11 @@ const PlotAnalysisOrig = ({ onPlotSelect }) => {
 
     const handlePlotChange = (plotcode) => {
         console.log("plot analysis: plot selection changed to:", plotcode);
-        console.log("Plot selection changed:", {
-            plotcode,
-            type: typeof plotcode,
-            isAll: plotcode === selectAllPlotsString
-        });
         if (plotcode === selectAllPlotsString) {
-            setSelectedPlot(null);
             onPlotSelect(null);
         } else {
-            const plot = parseInt(plotcode);
-            setSelectedPlot(plot);
-            onPlotSelect(plot);
+            onPlotSelect(plotcode);
         }
-
     };
 
     const analyzePlot = (plotcode) => {
@@ -97,6 +86,7 @@ const PlotAnalysisOrig = ({ onPlotSelect }) => {
         <div className="space-y-4">
             <div className="flex gap-4 mb-4">
                 <select
+                    value={selectedPlot || selectAllPlotsString}
                     onChange={(e) => handlePlotChange(e.target.value)}
                     className="px-4 py-2 rounded border"
                 >
@@ -151,4 +141,4 @@ const PlotAnalysisOrig = ({ onPlotSelect }) => {
     );
 };
 
-export default PlotAnalysisOrig;
+export default PlotAnalysis;
