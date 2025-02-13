@@ -6,6 +6,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import Papa from 'papaparse';
 import PlotAnalysis from "@/app/components/PlotAnalysis";
 import AggregatedPlotsAnalysis from "@/app/components/AggregatedPlotsAnalysis";
+import TreeTypeAnalysis from "@/app/components/TreeTypeAnalysis";
 
 const SentinelExplorer = () => {
   const [yearData, setYearData] = useState({});
@@ -430,6 +431,13 @@ const SentinelExplorer = () => {
 
         {/* Plot Selection Component */}
         <PlotAnalysis onPlotSelect={setSelectedPlot} />
+        <div className="mb-5 mt-100">
+          <br /><br /><br />
+        </div>
+        <TreeTypeAnalysis
+            onPlotSelect={setSelectedPlot}
+            selectedPlot={selectedPlot}
+        />
 
         {/* Bottom Spacing */}
         <div className="mb-5 mt-100">

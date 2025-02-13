@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import Papa from 'papaparse';
 
-const PlotAnalysis = ({ onPlotSelect }) => {
+const PlotAnalysisOrig = ({ onPlotSelect }) => {
     const [treeData, setTreeData] = useState([]);
     const [plotData, setPlotData] = useState([]);
     const [selectedPlot, setSelectedPlot] = useState(null);
@@ -152,4 +152,4 @@ const PlotAnalysis = ({ onPlotSelect }) => {
     );
 };
 
-export default PlotAnalysis;
+export default PlotAnalysisOrig;
