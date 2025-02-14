@@ -1,35 +1,71 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Papa from 'papaparse';
 import _ from 'lodash';
 
-const TreeTypeAnalysis = ({ onPlotSelect, selectedPlot }) => {
+const TreeTypeAnalysis = ({ selectedPlot }) => {
     const [treeData, setTreeData] = useState([]);
     const [chartData, setChartData] = useState([]);
+
+    // Tree type classification mapping
+    const treeTypeClassification = {
+        'Picea abies (L.) H.Karst.': 'evergreen',  // Norway Spruce
+        'Pinus sylvestris L.': 'evergreen',        // Scots Pine
+        'Pinus contorta Douglas ex Loudon': 'evergreen', // Lodgepole Pine
+        'Picea spp.': 'evergreen',                 // Spruce species
+        'Pinus mugo Turra': 'evergreen',           // Mountain Pine
+        'Juniperus spp.': 'evergreen',           // Juniper species
+        'Other conifers': 'evergreen',             // Other coniferous trees
+
+        'Betula pendula Roth': 'deciduous',        // Silver Birch
+        'Betula pubescens Ehrh.': 'deciduous',     // Downy Birch
+        'Betula spp.': 'deciduous',                // Birch species
+        'Populus tremula L.': 'deciduous',         // European Aspen
+        'Alnus glutinosa (L.) Gaertn.': 'deciduous', // Black Alder
+        'Alnus incana (L.) Moench': 'deciduous',   // Grey Alder
+        'Alnus spp.': 'deciduous',                 // Alder species
+        'Salix caprea L.': 'deciduous',            // Goat Willow
+        'Salix spp.': 'deciduous',                 // Willow species
+        'Sorbus aucuparia L.': 'deciduous',        // Rowan
+        'Sorbus intermedia (Ehrh.) Pers.': 'deciduous', // Swedish Whitebeam
+        'Sorbus spp.': 'deciduous',                // Sorbus species
+        'Acer platanoides L.': 'deciduous',        // Norway Maple
+        'Acer pseudoplatanus L.': 'deciduous',     // Sycamore Maple
+        'Fraxinus excelsior L.': 'deciduous',      // European Ash
+        'Quercus spp.': 'deciduous',               // Oak species
+        'Tilia spp.': 'deciduous',                 // Lime/Linden species
+        'Ulmus spp.': 'deciduous',                 // Elm species
+        'Carpinus betulus L.': 'deciduous',        // European Hornbeam
+        'Fagus sylvatica L.': 'deciduous',         // European Beech
+        'Prunus avium L.': 'deciduous',            // Wild Cherry
+        'Other broadleaved': 'deciduous',          // Other broadleaf trees
+        'Larix spp.': 'deciduous'                  // Larch species (deciduous conifer)
+    };
 
     useEffect(() => {
         const loadData = async () => {
             try {
-                const treesResponse = await fetch('/trees_finland_and_sweden_parsed.csv');
-                const treesText = await treesResponse.text();
+                const response = await fetch('/trees_finland_and_sweden_parsed.csv');
+                const text = await response.text();
 
-                Papa.parse(treesText, {
+                Papa.parse(text, {
                     header: true,
                     dynamicTyping: true,
+                    skipEmptyLines: true,
                     complete: (results) => {
                         const enrichedData = results.data
-                            .filter(tree => tree.taxonname) // Filter out null/undefined taxonnames
+                            .filter(tree => tree.taxonname && tree.plotcode) // Filter out null/undefined taxonnames
                             .map(tree => ({
                                 ...tree,
                                 treeType: treeTypeClassification[tree.taxonname] || 'unknown'
                             }));
 
                         setTreeData(enrichedData);
-                        const plotAverages = processTreeTypesByPlot(enrichedData);
-                        setChartData(plotAverages);
+
+                        // Process data for either selected plot or all plots
+                        const processedData = processTreeTypes(enrichedData, selectedPlot);
+                        setChartData(processedData);
                     }
                 });
             } catch (error) {
@@ -37,45 +73,45 @@ const TreeTypeAnalysis = ({ onPlotSelect, selectedPlot }) => {
             }
         };
         loadData();
-    }, []);
+    }, [selectedPlot]);
 
-    const processTreeTypesByPlot = (trees) => {
+    const processTreeTypes = (trees, selectedPlot) => {
+        // Filter trees based on plot selection
+        const relevantTrees = selectedPlot ?
+            trees.filter(tree => String(tree.plotcode) === String(selectedPlot)) :
+            trees;
+
+        // Calculate total trees and type counts
+        const total = relevantTrees.length;
+        const typeCounts = _.countBy(relevantTrees, 'treeType');
+
+        // Calculate percentages and standard deviations
         const plotGroups = _.groupBy(trees, 'plotcode');
-        const plotStats = Object.entries(plotGroups).map(([plotcode, plotTrees]) => {
-            const total = plotTrees.length;
-            const typeCounts = _.countBy(plotTrees, 'treeType');
-
+        const plotPercentages = Object.values(plotGroups).map(plotTrees => {
+            const plotTotal = plotTrees.length;
             return {
-                plotcode,
-                total,
-                evergreen: (typeCounts.evergreen || 0) / total * 100,
-                deciduous: (typeCounts.deciduous || 0) / total * 100,
-                unknown: (typeCounts.unknown || 0) / total * 100
+                evergreen: (plotTrees.filter(t => t.treeType === 'evergreen').length / plotTotal) * 100,
+                deciduous: (plotTrees.filter(t => t.treeType === 'deciduous').length / plotTotal) * 100,
+                unknown: (plotTrees.filter(t => t.treeType === 'unknown').length / plotTotal) * 100
             };
         });
 
-        const averages = {
-            evergreen: _.meanBy(plotStats, 'evergreen'),
-            deciduous: _.meanBy(plotStats, 'deciduous'),
-            unknown: _.meanBy(plotStats, 'unknown')
-        };
-
         const stdDev = {
-            evergreen: Math.sqrt(_.meanBy(plotStats, p => Math.pow(p.evergreen - averages.evergreen, 2))),
-            deciduous: Math.sqrt(_.meanBy(plotStats, p => Math.pow(p.deciduous - averages.deciduous, 2))),
-            unknown: Math.sqrt(_.meanBy(plotStats, p => Math.pow(p.unknown - averages.unknown, 2)))
+            evergreen: Math.sqrt(_.meanBy(plotPercentages, p => Math.pow(p.evergreen - (typeCounts.evergreen || 0) / total * 100, 2))),
+            deciduous: Math.sqrt(_.meanBy(plotPercentages, p => Math.pow(p.deciduous - (typeCounts.deciduous || 0) / total * 100, 2))),
+            unknown: Math.sqrt(_.meanBy(plotPercentages, p => Math.pow(p.unknown - (typeCounts.unknown || 0) / total * 100, 2)))
         };
 
         return [{
-            name: 'Average Distribution',
-            evergreen: _.round(averages.evergreen, 1),
-            deciduous: _.round(averages.deciduous, 1),
-            unknown: _.round(averages.unknown, 1),
+            name: selectedPlot ? `Plot ${selectedPlot}` : 'Average Distribution',
+            evergreen: _.round((typeCounts.evergreen || 0) / total * 100, 1),
+            deciduous: _.round((typeCounts.deciduous || 0) / total * 100, 1),
+            unknown: _.round((typeCounts.unknown || 0) / total * 100, 1),
             evergreenStd: _.round(stdDev.evergreen, 1),
             deciduousStd: _.round(stdDev.deciduous, 1),
             unknownStd: _.round(stdDev.unknown, 1),
-            totalPlots: plotStats.length,
-            totalTrees: _.sumBy(plotStats, 'total')
+            totalPlots: selectedPlot ? 1 : Object.keys(plotGroups).length,
+            totalTrees: total
         }];
     };
 
@@ -86,7 +122,9 @@ const TreeTypeAnalysis = ({ onPlotSelect, selectedPlot }) => {
                     <p className="text-sm font-semibold mb-1">{label}</p>
                     {payload.map((entry) => (
                         <p key={entry.name} className="text-sm" style={{ color: entry.color }}>
-                            {entry.name}: {entry.value.toFixed(1)}% ± {payload[0].payload[`${entry.dataKey}Std`]}%
+                            {entry.name}: {entry.value.toFixed(1)}%
+                            {entry.payload[`${entry.dataKey}Std`] !== undefined &&
+                                ` ± ${entry.payload[`${entry.dataKey}Std`]}%`}
                         </p>
                     ))}
                 </div>
@@ -176,41 +214,6 @@ const TreeTypeAnalysis = ({ onPlotSelect, selectedPlot }) => {
             </CardContent>
         </Card>
     );
-};
-
-// Tree type classification
-const treeTypeClassification = {
-    'Picea abies (L.) H.Karst.': 'evergreen',  // Norway Spruce
-    'Pinus sylvestris L.': 'evergreen',        // Scots Pine
-    'Pinus contorta Douglas ex Loudon': 'evergreen', // Lodgepole Pine
-    'Picea spp.': 'evergreen',                 // Spruce species
-    'Pinus mugo Turra': 'evergreen',           // Mountain Pine
-    'Juniperus spp.\n': 'evergreen',           // Juniper species
-    'Other conifers': 'evergreen',             // Other coniferous trees
-
-    'Betula pendula Roth': 'deciduous',        // Silver Birch
-    'Betula pubescens Ehrh.': 'deciduous',     // Downy Birch
-    'Betula spp.': 'deciduous',                // Birch species
-    'Populus tremula L.': 'deciduous',         // European Aspen
-    'Alnus glutinosa (L.) Gaertn.': 'deciduous', // Black Alder
-    'Alnus incana (L.) Moench': 'deciduous',   // Grey Alder
-    'Alnus spp.': 'deciduous',                 // Alder species
-    'Salix caprea L.': 'deciduous',            // Goat Willow
-    'Salix spp.': 'deciduous',                 // Willow species
-    'Sorbus aucuparia L.': 'deciduous',        // Rowan
-    'Sorbus intermedia (Ehrh.) Pers.': 'deciduous', // Swedish Whitebeam
-    'Sorbus spp.': 'deciduous',                // Sorbus species
-    'Acer platanoides L.': 'deciduous',        // Norway Maple
-    'Acer pseudoplatanus L.': 'deciduous',     // Sycamore Maple
-    'Fraxinus excelsior L.': 'deciduous',      // European Ash
-    'Quercus spp.': 'deciduous',               // Oak species
-    'Tilia spp.': 'deciduous',                 // Lime/Linden species
-    'Ulmus spp.': 'deciduous',                 // Elm species
-    'Carpinus betulus L.': 'deciduous',        // European Hornbeam
-    'Fagus sylvatica L.': 'deciduous',         // European Beech
-    'Prunus avium L.': 'deciduous',            // Wild Cherry
-    'Other broadleaved': 'deciduous',          // Other broadleaf trees
-    'Larix spp.': 'deciduous'                  // Larch species (deciduous conifer)
 };
 
 export default TreeTypeAnalysis;

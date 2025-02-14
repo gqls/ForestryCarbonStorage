@@ -135,7 +135,6 @@ const TreeTypeSentinelExplorer = ({ selectedPlot }) => {
 
         return months.map((month, idx) => {
             const entry = { month };
-
             const yearsToProcess = selectedYear === 'all' ? years : [selectedYear];
 
             yearsToProcess.forEach(year => {
