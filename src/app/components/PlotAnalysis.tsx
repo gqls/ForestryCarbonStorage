@@ -14,7 +14,7 @@ const PlotAnalysis = ({ selectedPlot, onPlotSelect }) => {
             console.log("plot analysis: loading plot and tree data . . .");
             try {
                 const [treesResponse, plotsResponse] = await Promise.all([
-                    fetch('/trees_finland_and_sweden.csv'),
+                    fetch('/trees_finland_and_sweden_parsed.csv'),
                     fetch('/plots_finland_and_sweden.csv')
                 ]);
 

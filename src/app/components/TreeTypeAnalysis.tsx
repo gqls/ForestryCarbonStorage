@@ -13,7 +13,7 @@ const TreeTypeAnalysis = ({ onPlotSelect, selectedPlot }) => {
     useEffect(() => {
         const loadData = async () => {
             try {
-                const treesResponse = await fetch('/trees_finland_and_sweden.csv');
+                const treesResponse = await fetch('/trees_finland_and_sweden_parsed.csv');
                 const treesText = await treesResponse.text();
 
                 Papa.parse(treesText, {

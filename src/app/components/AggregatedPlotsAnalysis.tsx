@@ -15,12 +15,6 @@ const AggregatedPlotsAnalysis = ({
                                  }) => {
     const processAggregatedData = (data) => {
         console.log("========== START AGGREGATED PROCESSING ==========");
-        console.log("Input data structure:", {
-            hasData: !!data,
-            yearKeys: data ? Object.keys(data) : [],
-            sampleYear: data ? Object.keys(data)[0] : null,
-            sampleYearLength: data ? data[Object.keys(data)[0]]?.length : 0
-        });
 
         if (!data || Object.keys(data).length === 0) {
             console.log("No data available for aggregation");

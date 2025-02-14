@@ -1,0 +1,1 @@
+sed 's/\xc2\xa0/ /g' trees_finland_and_sweden.csv >  trees_finland_and_sweden_parsed.csv
