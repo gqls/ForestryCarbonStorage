@@ -78,14 +78,6 @@ const TreeTypeSentinelExplorer = ({ selectedPlot }) => {
                             .map(tree => {
                                 const taxonname = tree.taxonname.trim(); // Trim any whitespace
                                 const treeType = treeTypeClassification[taxonname];
-                                // Simple debug log
-                                console.log('Tree taxon comparison:', {
-                                    'Input taxon': taxonname,
-                                    'Input length': taxonname.length,
-                                    'Expected taxon': 'Salix caprea L.',
-                                    'Expected length': 'Salix caprea L.'.length,
-                                    'Has match': Object.keys(treeTypeClassification).includes(taxonname)
-                                });
 
                                 return {
                                     ...tree,
@@ -110,29 +102,6 @@ const TreeTypeSentinelExplorer = ({ selectedPlot }) => {
             return [];
         }
 
-        const selectedPlotNumber = Number(selectedPlot);
-        console.log("Processing plot:", selectedPlotNumber);
-
-        // Group trees by plot code, handling both Finnish and Swedish formats
-        const plotTreeTypes = _.groupBy(
-            treeData.filter(tree => {
-                if (!selectedPlot) return true;
-                const matches = tree.plotcode === selectedPlotNumber;
-                if (matches) {
-                    console.log("Found matching tree:", tree);
-                }
-                return matches;
-            }),
-            'plotcode'
-        );
-
-        console.log("Tree groups found:", {
-            selectedPlot: selectedPlotNumber,
-            totalTrees: treeData.length,
-            matchingTrees: plotTreeTypes[selectedPlotNumber]?.length || 0,
-            country: plotTreeTypes[selectedPlotNumber]?.[0]?.country
-        });
-
         return months.map((month, idx) => {
             const entry = { month };
             const yearsToProcess = selectedYear === 'all' ? years : [selectedYear];
@@ -140,72 +109,109 @@ const TreeTypeSentinelExplorer = ({ selectedPlot }) => {
             yearsToProcess.forEach(year => {
                 if (!data[year]) return;
 
-                // Find the specific plot data we need
-                const plotData = data[year].find(p => p.plotcode === selectedPlotNumber);
-                if (!plotData) {
-                    console.log(`No data found for plot ${selectedPlotNumber} in year ${year}`);
-                    return;
-                }
+                if (selectedPlot) {
 
-                const plotTrees = plotTreeTypes[selectedPlotNumber];
-                if (!plotTrees) {
-                    console.log(`No tree data found for plot ${selectedPlotNumber}`);
-                    return;
-                }
+                    const selectedPlotNumber = Number(selectedPlot);
+                    console.log("Processing plot:", selectedPlotNumber);
 
-                // Calculate metrics separately for evergreen and deciduous
-                const evergreen = plotTrees.filter(t => t.treeType === 'evergreen').length;
-                const deciduous = plotTrees.filter(t => t.treeType === 'deciduous').length;
-                const total = evergreen + deciduous;
+                    // Find the specific plot data we need
+                    const plotData = data[year].find(p => p.plotcode === selectedPlotNumber);
+                    if (!plotData) {
+                        console.log(`No data found for plot ${selectedPlotNumber} in year ${year}`);
+                        return;
+                    }
 
-                if (total > 0) {
+                    // Group trees by plot code, handling both Finnish and Swedish formats
+                    const plotTreeTypes = _.groupBy(
+                        treeData.filter(tree => {
+                            if (!selectedPlot) return true;
+                            const matches = tree.plotcode === selectedPlotNumber;
+                            return matches;
+                        }),
+                        'plotcode'
+                    );
+
+                    const plotTrees = plotTreeTypes[selectedPlotNumber];
+                    if (!plotTrees) {
+                        console.log(`No tree data found for plot ${selectedPlotNumber}`);
+                        return;
+                    }
+
+                    // Calculate metrics separately for evergreen and deciduous
+                    const evergreen = plotTrees.filter(t => t.treeType === 'evergreen').length;
+                    const deciduous = plotTrees.filter(t => t.treeType === 'deciduous').length;
+                    const total = evergreen + deciduous;
+
                     // Weight the metrics by the proportion of each tree type
                     const evergreenWeight = evergreen / total;
                     const deciduousWeight = deciduous / total;
 
-                    // Add weighted metrics to the entry
-                    const suffix = selectedYear === 'all' ? `_${year}` : '';
-                    const metrics = ['VHAsc', 'VVAsc', 'VHDes', 'VVDes', 'B2', 'B3', 'B4', 'B8'];
+                    if (total > 0) {
+                        processPlotMetrics(entry, plotData, evergreenWeight, deciduousWeight, idx, year);
+                    }
+                } else {
 
-                    metrics.forEach(metric => {
-                        // Try both with and without month prefix
-                        let value = plotData[`${idx}_${metric}`];
-                        if (value === null || value === undefined) {
-                            // If not found, try looking for the data with monthNumber_metric format
-                            for (let monthNumber = 0; monthNumber < 12; monthNumber++) {
-                                const altKey = `${monthNumber}_${metric}`;
-                                if (plotData[altKey] !== null && plotData[altKey] !== undefined) {
-                                    value = plotData[altKey];
-                                    console.log(`Found value for ${altKey}:`, value);
-                                    break;
-                                }
-                            }
-                        }
+                    // All plots processing
+                    // Very Very slow, so much going on here
+                    return [];  // todo note bene
 
-                        if (value !== null && value !== undefined) {
-                            console.log(`Processing ${metric} for month ${idx}:`, value);
-                            entry[`evergreen_${metric}${suffix}`] = (entry[`evergreen_${metric}${suffix}`] || 0) +
-                                (value * evergreenWeight);
-                            entry[`deciduous_${metric}${suffix}`] = (entry[`deciduous_${metric}${suffix}`] || 0) +
-                                (value * deciduousWeight);
-                        }
+
+                    
+                    const validPlots = data[year].filter(plot => {
+                        const plotTrees = treeData.filter(t => t.plotcode === plot.plotcode);
+                        return plotTrees.length > 0;
                     });
 
-                    // Calculate NDVI for each type
-                    if (plotData[`${idx}_B8`] !== null && plotData[`${idx}_B4`] !== null) {
-                        const ndvi = (plotData[`${idx}_B8`] - plotData[`${idx}_B4`]) /
-                            (plotData[`${idx}_B8`] + plotData[`${idx}_B4`]);
-                        entry[`evergreen_NDVI${suffix}`] = (entry[`evergreen_NDVI${suffix}`] || 0) +
-                            (ndvi * evergreenWeight);
-                        entry[`deciduous_NDVI${suffix}`] = (entry[`deciduous_NDVI${suffix}`] || 0) +
-                            (ndvi * deciduousWeight);
-                    }
+                    // Calculate average metrics across all plots
+                    validPlots.forEach(plotData => {
+                        const plotTrees = treeData.filter(t => t.plotcode === plotData.plotcode);
+                        const evergreen = plotTrees.filter(t => t.treeType === 'evergreen').length;
+                        const deciduous = plotTrees.filter(t => t.treeType === 'deciduous').length;
+                        const total = evergreen + deciduous;
+
+                        if (total > 0) {
+                            processPlotMetrics(
+                                entry,
+                                plotData,
+                                (evergreen / total) / validPlots.length,
+                                (deciduous / total) / validPlots.length,
+                                idx,
+                                year
+                            );
+                        }
+                    })
                 }
             });
 
         return entry;
     });
 };
+
+    const processPlotMetrics = (entry, plotData, evergreenWeight, deciduousWeight, idx, year) => {
+
+        const suffix = selectedYear === 'all' ? `_${year}` : '';
+        const metrics = ['VHAsc', 'VVAsc', 'VHDes', 'VVDes', 'B2', 'B3', 'B4', 'B8'];
+
+        metrics.forEach(metric => {
+            const value = plotData[`${idx}_${metric}`];
+            if (value !== null && value !== undefined) {
+                entry[`evergreen_${metric}${suffix}`] = (entry[`evergreen_${metric}${suffix}`] || 0) +
+                    (value * evergreenWeight);
+                entry[`deciduous_${metric}${suffix}`] = (entry[`deciduous_${metric}${suffix}`] || 0) +
+                    (value * deciduousWeight);
+            }
+        });
+
+        // Calculate NDVI
+        if (plotData[`${idx}_B8`] !== null && plotData[`${idx}_B4`] !== null) {
+            const ndvi = (plotData[`${idx}_B8`] - plotData[`${idx}_B4`]) /
+                (plotData[`${idx}_B8`] + plotData[`${idx}_B4`]);
+            entry[`evergreen_NDVI${suffix}`] = (entry[`evergreen_NDVI${suffix}`] || 0) +
+                (ndvi * evergreenWeight);
+            entry[`deciduous_NDVI${suffix}`] = (entry[`deciduous_NDVI${suffix}`] || 0) +
+                (ndvi * deciduousWeight);
+        }
+    };
 
 const views = {
     backscatter: {
