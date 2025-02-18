@@ -23,12 +23,12 @@ const AggregatedPlotsAnalysis = ({
 
         // Process monthly averages across all plots
         return months.map((month, idx) => {
-            console.log(`Processing month: ${month} (index: ${idx})`);
+            //console.log(`Processing month: ${month} (index: ${idx})`);
             const entry = { month };
 
             // If viewing all years, process each year separately
             const yearsToProcess = selectedYear === 'all' ? years : [selectedYear];
-            console.log("Years to process:", yearsToProcess);
+            //console.log("Years to process:", yearsToProcess);
 
             yearsToProcess.forEach(year => {
                 if (!data[year]) {
@@ -37,7 +37,7 @@ const AggregatedPlotsAnalysis = ({
                 }
 
                 const plotsData = data[year];
-                console.log(`Year ${year} has ${plotsData.length} plots`);
+                //console.log(`Year ${year} has ${plotsData.length} plots`);
 
                 // Create an array of metrics we want to average
                 const metrics = [

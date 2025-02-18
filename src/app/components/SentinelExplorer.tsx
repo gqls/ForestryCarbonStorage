@@ -71,13 +71,13 @@ const SentinelExplorer = ({ selectedPlot }) => {
 
   const processMultiYearData = (data) => {
 
-    console.log("Processing data with:", {
+/*    console.log("Processing data with:", {
       selectedYear,
       selectedPlot,
       hasData: !!data,
       yearKeys: data ? Object.keys(data) : [],
       samplePlotData: data?.[years[0]]?.[0]
-    });
+    });*/
 
     if (!data || Object.keys(data).length === 0) {
       console.log("No data available, returning empty array");
@@ -87,11 +87,11 @@ const SentinelExplorer = ({ selectedPlot }) => {
     if (selectedYear === 'all') {
 
       const tempplotData = data[years[0]]?.find(row => row.plotcode === selectedPlot);
-      console.log("Found plot?", {
+ /*     console.log("Found plot?", {
         plotFound: !!tempplotData,
         plotcode: tempplotData?.plotcode,
         selectedPlot
-      });
+      });*/
 
       return months.map((month, idx) => {
         const entry = { month };
