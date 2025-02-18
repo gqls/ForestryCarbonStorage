@@ -1,124 +1,70 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ErrorBar } from 'recharts';
-import Papa from 'papaparse';
-import _ from 'lodash';
 
 const SpeciesNDVIPatterns = () => {
     const [data, setData] = useState([]);
-    const [selectedYear, setSelectedYear] = useState(2017);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthIndices = months.map((_, idx) => idx);
+    const [loading, setLoading] = useState(true);
 
     const majorSpecies = [
-        'Pinus sylvestris L.',
-        'Picea abies (L.) H.Karst.',
-        'Betula pendula Roth',
-        'Betula pubescens Ehrh.',
-        'Populus tremula L.'
-    ];
+        // Primary Species (>1000 plots)
+            'Picea abies (L.) H.Karst.',
+                'Pinus sylvestris L.',
+                'Betula pubescens Ehrh.',
+        // Secondary Species (500-1000 plots)
+            'Betula pendula Roth',
+                'Populus tremula L.',
+        // Less Common Species (>300 plots)
+            'Salix caprea L.',
+                'Alnus incana (L.) Moench',
+                'Alnus glutinosa (L.) Gaertn.',
+                'Sorbus aucuparia L.',
+                'Pinus contorta Douglas ex Loudon',
+        // Rare Species (>50 plots)
+            'Acer platanoides L.',
+                'Fraxinus excelsior L.'
+]
 
     const speciesColors = {
-        'Pinus sylvestris L.': '#2e7d32',
-        'Picea abies (L.) H.Karst.': '#1b5e20',
-        'Betula pendula Roth': '#ff9800',
-        'Betula pubescens Ehrh.': '#f57c00',
-        'Populus tremula L.': '#fdd835'
+        // Primary Species (>1000 plots)
+        'Picea abies (L.) H.Karst.': '#1b5e20',     // Dark Green
+        'Pinus sylvestris L.': '#2e7d32',           // Medium Green
+        'Betula pubescens Ehrh.': '#66bb6a',        // Light Green
+
+        // Secondary Species (500-1000 plots)
+        'Betula pendula Roth': '#ff9800',           // Orange
+        'Populus tremula L.': '#fdd835',            // Yellow
+
+        // Less Common Species (>300 plots)
+        'Salix caprea L.': '#1976d2',               // Blue
+        'Alnus incana (L.) Moench': '#1565c0',      // Darker Blue
+        'Alnus glutinosa (L.) Gaertn.': '#0d47a1',  // Darkest Blue
+        'Sorbus aucuparia L.': '#7b1fa2',           // Purple
+        'Pinus contorta Douglas ex Loudon': '#6a1b9a', // Dark Purple
+
+        // Rare Species (>50 plots)
+        'Acer platanoides L.': '#c62828',           // Red
+        'Fraxinus excelsior L.': '#b71c1c'          // Dark Red
     };
 
     useEffect(() => {
         const loadData = async () => {
             try {
-                console.log('Starting data load...');
-                const treesResponse = await fetch('/trees_finland_and_sweden_parsed.csv');
-                const satelliteResponse = await fetch(`/features_${selectedYear}_mean.csv`);
-
-                if (!treesResponse.ok || !satelliteResponse.ok) {
-                    throw new Error('Failed to fetch data');
+                const response = await fetch('/preprocessed_ndvi_patterns.json');
+                if (!response.ok) {
+                    throw new Error('Failed to load preprocessed data');
                 }
-
-                const [treesText, satelliteText] = await Promise.all([
-                    treesResponse.text(),
-                    satelliteResponse.text()
-                ]);
-
-                const [treeData, satelliteData] = await Promise.all([
-                    new Promise((resolve) => {
-                        Papa.parse(treesText, {
-                            header: true,
-                            dynamicTyping: true,
-                            complete: results => resolve(results.data)
-                        });
-                    }),
-                    new Promise((resolve) => {
-                        Papa.parse(satelliteText, {
-                            header: true,
-                            dynamicTyping: true,
-                            complete: results => resolve(results.data)
-                        });
-                    })
-                ]);
-
-                const plotsBySpecies = {};
-                treeData.forEach(tree => {
-                    if (tree && tree.taxonname && majorSpecies.includes(tree.taxonname)) {
-                        if (!plotsBySpecies[tree.taxonname]) {
-                            plotsBySpecies[tree.taxonname] = new Set();
-                        }
-                        plotsBySpecies[tree.taxonname].add(tree.plotcode);
-                    }
-                });
-
-                const ndviData = monthIndices.map((monthIdx) => {
-                    const entry = { month: months[monthIdx] };
-
-                    majorSpecies.forEach(species => {
-                        const plotsForSpecies = Array.from(plotsBySpecies[species] || []);
-                        const relevantPlots = satelliteData.filter(plot =>
-                            plotsForSpecies.includes(plot.plotcode)
-                        );
-
-                        if (relevantPlots.length > 0) {
-                            const ndviValues = relevantPlots.map(plot => {
-                                const nir = plot[`${monthIdx}_B8`];
-                                const red = plot[`${monthIdx}_B4`];
-
-                                if (nir != null && red != null && red !== 0) {
-                                    const ndvi = (nir - red) / (nir + red);
-                                    if (!isNaN(ndvi) && ndvi >= -1 && ndvi <= 1) {
-                                        return ndvi;
-                                    }
-                                }
-                                return null;
-                            }).filter(val => val !== null);
-
-                            if (ndviValues.length > 0) {
-                                const meanNDVI = _.mean(ndviValues);
-                                const stdDev = Math.sqrt(_.sum(ndviValues.map(v =>
-                                    Math.pow(v - meanNDVI, 2)
-                                )) / ndviValues.length);
-
-                                if (!isNaN(meanNDVI)) {
-                                    entry[species] = meanNDVI;
-                                    entry[`${species}_count`] = ndviValues.length;
-                                    entry[`${species}_stdDev`] = stdDev;
-                                    console.log(`Month ${months[monthIdx]}, Species ${species}: NDVI = ${meanNDVI} ± ${stdDev} (n=${ndviValues.length})`);
-                                }
-                            }
-                        }
-                    });
-
-                    return entry;
-                });
-
-                setData(ndviData);
+                const jsonData = await response.json();
+                setData(jsonData);
             } catch (error) {
-                console.error('Error processing data:', error);
+                console.error('Error loading preprocessed data:', error);
+            } finally {
+                setLoading(false);
             }
         };
 
         loadData();
-    }, [selectedYear]);
+    }, []);
 
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
@@ -143,7 +89,7 @@ const SpeciesNDVIPatterns = () => {
         return null;
     };
 
-    if (!data || data.length === 0) {
+    if (loading || !data || data.length === 0) {
         return (
             <Card>
                 <CardHeader>
@@ -161,9 +107,9 @@ const SpeciesNDVIPatterns = () => {
     return (
         <Card>
             <CardHeader>
-                <h3 className="text-lg font-semibold">Seasonal NDVI Patterns by Species ({selectedYear})</h3>
+                <h3 className="text-lg font-semibold">Average Seasonal NDVI Patterns by Species (2017-2024)</h3>
                 <p className="text-sm text-gray-600">
-                    Showing mean NDVI values with standard deviation error bars
+                    Showing mean NDVI values with standard deviation error bars, averaged across all available years
                 </p>
             </CardHeader>
             <CardContent>
@@ -192,7 +138,7 @@ const SpeciesNDVIPatterns = () => {
                                     key={species}
                                     type="monotone"
                                     dataKey={species}
-                                    name={species}
+                                    name={species.split(' (')[0]}
                                     stroke={speciesColors[species]}
                                     dot={true}
                                     strokeWidth={2}
