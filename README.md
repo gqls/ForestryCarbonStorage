@@ -1,4 +1,4 @@
-This is a [Next.js](https://nextjs.org) 
+This is a [Next.js](https://nextjs.org) app.
 
 This project is the visualisation of Satellite data from over 90,000 forestry plots in Sweden and Finland.
 
