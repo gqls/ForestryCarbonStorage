@@ -1,6 +1,21 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is a [Next.js](https://nextjs.org) 
+
+This project is the visualisation of Satellite data from over 90,000 forestry plots in Sweden and Finland.
+
+Data from two satellite projects is used. Sentinel 1 gives us radar data which is good for e.g. water content, weather conditions etc.
+Sentinel 2 data is optical data of different wavelengths. 
+NDVI - Normalised Difference Vegetation Index is a ratio of combinations of visible light and near infrared light.
+It is used to determine vegetation health and density.
+The formula is NDVI = (NIR — VIS)/(NIR + VIS) 
+Negative values indicate water or clouds, while positive values indicate vegetation
+Red light absorption indicates good plant health.
+Near infrared reflection (i.e. higher values) indicate more biomass and healthy plants.
+
+
 
 ## Getting Started
+
+project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 First, run the development server:
 
